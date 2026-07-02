@@ -20,6 +20,8 @@ from retrieval_fairness.metrics import (
     FairnessReport,
 )
 from retrieval_fairness.probe import probe, ProbeResult
+from retrieval_fairness.diff import diff_reports, DiffReport
+from retrieval_fairness.serialize import save_probe, load_probe
 
 __all__ = [
     "Chunk",
@@ -35,4 +37,8 @@ __all__ = [
     "FairnessReport",
     "probe",
     "ProbeResult",
+    "diff_reports",
+    "DiffReport",
+    "save_probe",
+    "load_probe",
 ]
