@@ -46,6 +46,42 @@ def test_tfidf_satisfies_protocol():
     assert hasattr(emb, "fit") and hasattr(emb, "encode") and hasattr(emb, "dim")
 
 
+def test_get_embedder_sbert_passes_model_name():
+    """Баг #2: get_embedder('sbert', model_name=...) раньше игнорировал модель.
+    Проверяем, что model_name доходит до SentenceTransformerEmbedder. Без рабочей
+    sentence-transformers — мокаем конструктор."""
+    import retrieval_fairness.embedders as em
+    captured = {}
+    class _FakeST:
+        def __init__(self, model_name=None):
+            captured["model_name"] = model_name
+        def get_sentence_embedding_dimension(self):
+            return 384
+        def encode(self, texts, show_progress_bar=False):
+            import numpy as np
+            return np.zeros((len(texts), 384))
+    orig = em.SentenceTransformerEmbedder
+    # подменяем класс в модуле, чтобы импорт внутри get_embedder подхватил
+    import sys
+    import types
+    fake_module = types.ModuleType("sentence_transformers")
+    fake_module.SentenceTransformer = _FakeST
+    sys.modules["sentence_transformers"] = fake_module
+    try:
+        # перезагружаем, чтобы SentenceTransformerEmbedder использовал фейк
+        import importlib
+        importlib.reload(em)
+        e = em.get_embedder("sbert", model_name="my-org/my-model")
+        assert captured["model_name"] == "my-org/my-model"
+        # minilm — фиксированная, model_name игнорируется
+        e2 = em.get_embedder("minilm", model_name="ignored-pls")
+        assert captured["model_name"] == "sentence-transformers/all-MiniLM-L6-v2"
+    finally:
+        sys.modules.pop("sentence_transformers", None)
+        importlib.reload(em)
+        importlib.reload(importlib.import_module("retrieval_fairness"))
+
+
 @pytest.mark.skipif(
     os.environ.get("RF_TEST_MINILM") != "1",
     reason="set RF_TEST_MINILM=1 to test sentence-transformers (heavy dep)",

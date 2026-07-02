@@ -113,14 +113,29 @@ class FastembedEmbedder:
 
 
 def get_embedder(name: str, **kw) -> Embedder:
-    """Реестр эмбеддеров: 'tfidf' | 'minilm' | 'sbert' | 'fastembed' | 'bge'."""
+    """Реестр эмбеддеров: 'tfidf' | 'minilm' | 'sbert' | 'fastembed' | 'bge'.
+
+    minilm — фиксированная модель all-MiniLM-L6-v2 (model_name игнорируется).
+    sbert  — sentence-transformers с model_name из kw (None = дефолт ST).
+    bge    — fastembed с фиксированной BAAI/bge-small-en-v1.5.
+    fastembed — fastembed с model_name из kw (дефолт BGE-small).
+    """
     name = name.lower()
     if name == "tfidf":
         return TfidfEmbedder(**kw)
-    if name in ("minilm", "sbert"):
-        model = "sentence-transformers/all-MiniLM-L6-v2" if name == "minilm" else kw.pop("model_name", None)
-        return SentenceTransformerEmbedder(model_name=model) if name == "minilm" else SentenceTransformerEmbedder(**kw)
-    if name in ("fastembed", "bge"):
-        model = "BAAI/bge-small-en-v1.5" if name == "bge" else kw.pop("model_name", "BAAI/bge-small-en-v1.5")
-        return FastembedEmbedder(model_name=model)
+    if name == "minilm":
+        # фиксированная модель; model_name не передаём, чтобы не переопределять
+        kw.pop("model_name", None)
+        return SentenceTransformerEmbedder(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    if name == "sbert":
+        model_name = kw.pop("model_name", None)
+        if model_name is not None:
+            return SentenceTransformerEmbedder(model_name=model_name)
+        return SentenceTransformerEmbedder()  # дефолт ST
+    if name == "bge":
+        kw.pop("model_name", None)  # фиксированная модель
+        return FastembedEmbedder(model_name="BAAI/bge-small-en-v1.5")
+    if name == "fastembed":
+        model_name = kw.pop("model_name", "BAAI/bge-small-en-v1.5")
+        return FastembedEmbedder(model_name=model_name)
     raise ValueError(f"unknown embedder: {name}")

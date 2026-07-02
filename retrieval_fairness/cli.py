@@ -104,11 +104,16 @@ def cmd_demo(args: argparse.Namespace) -> int:
 
 
 def cmd_diff(args: argparse.Namespace) -> int:
+    import sys
     from retrieval_fairness.serialize import load_probe
     from retrieval_fairness.diff import diff_reports
-    base = load_probe(args.baseline)
-    cand = load_probe(args.candidate)
-    d = diff_reports(base, cand)
+    try:
+        base = load_probe(args.baseline)
+        cand = load_probe(args.candidate)
+        d = diff_reports(base, cand)
+    except (ValueError, FileNotFoundError, KeyError) as e:
+        print(f"ОШИБКА: {e}", file=sys.stderr)
+        return 2
     print(d)
     if args.json:
         import json as _json

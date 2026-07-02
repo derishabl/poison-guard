@@ -51,6 +51,27 @@ def test_per_query_overlap_partial():
     assert abs(ov[0] - 1 / 3) < 1e-9
 
 
+def test_per_query_overlap_rejects_mismatched_length():
+    """Баг #4: разное число запросов раньше молча обрезалось zip'ом -> мусор.
+    Теперь явная ошибка (тихо неверный результат хуже падения)."""
+    try:
+        per_query_overlap([["a"], ["b"], ["c"]], [["a"], ["b"]])
+        assert False, "expected ValueError on mismatched query count"
+    except ValueError:
+        pass
+
+
+def test_diff_reports_propagates_query_count_mismatch():
+    base = _mock_result({"a": 1}, [["a"]], cov=1.0, dm=0.0)
+    # candidate с другим числом запросов (2 vs 1)
+    cand = _mock_result({"a": 1}, [["a"], ["b"]], cov=1.0, dm=0.0)
+    try:
+        diff_reports(base, cand)
+        assert False
+    except ValueError:
+        pass
+
+
 def test_diff_reports_coverage_drop():
     base = _mock_result({"a": 5, "b": 3, "c": 2, "d": 2}, [["a", "b"]], cov=1.0, dm=0.0)
     cand = _mock_result({"a": 5, "b": 3, "c": 0, "d": 0}, [["a", "b"]], cov=0.5, dm=0.5)

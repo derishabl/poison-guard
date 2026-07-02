@@ -15,10 +15,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 
-def _id_to_index(queries: list) -> dict[str, int]:
-    return {q.id: i for i, q in enumerate(queries)}
-
-
 def per_chunk_delta(
     baseline: dict[str, int], candidate: dict[str, int]
 ) -> dict[str, int]:
@@ -47,8 +43,21 @@ def per_query_overlap(
     """
     Per-query Jaccard overlap top-k между baseline и candidate.
     1.0 = выдача не изменилась; 0.0 = полностью разная.
-    Список выровнен по индексу запроса (предполагается одинаковый порядок).
+    Список выровнен по индексу запроса (предполагается одинаковый порядок
+    и одинаковое число запросов).
+
+    Раньше использовался zip(), который при разном числе запросов молча
+    обрезает по короткому — это давал мусорный mean overlap. Теперь
+    разное число запросов = явная ошибка (тихо неверный результат хуже
+    падения).
     """
+    if len(baseline_hits) != len(candidate_hits):
+        raise ValueError(
+            f"per_query_overlap: число запросов отличается "
+            f"(baseline={len(baseline_hits)}, candidate={len(candidate_hits)}). "
+            f"Regression-diff осмыслен только для одинакового workload'а; "
+            f"сравнение разных наборов запросов даст невалидный overlap."
+        )
     out = []
     for b, c in zip(baseline_hits, candidate_hits):
         sb, sc = set(b), set(c)
