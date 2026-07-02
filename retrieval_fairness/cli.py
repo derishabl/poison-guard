@@ -51,6 +51,12 @@ def cmd_probe(args: argparse.Namespace) -> int:
         with open(args.json, "w", encoding="utf-8") as f:
             json.dump(result.report.to_dict(), f, ensure_ascii=False, indent=2)
         print(f"\nJSON-отчёт сохранён: {args.json}")
+    if args.html:
+        from retrieval_fairness.dashboard import render_dashboard
+        render_dashboard(result, args.html,
+                         chunks_vectors=[c.vector for c in corpus],
+                         chunk_ids=[c.id for c in corpus])
+        print(f"HTML-дашборд сохранён: {args.html}")
     return 0
 
 
@@ -81,6 +87,13 @@ def cmd_demo_diff(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_dashboard(args: argparse.Namespace) -> int:
+    from retrieval_fairness.dashboard import render_dashboard_from_baseline
+    render_dashboard_from_baseline(args.baseline, args.html, corpus_path=args.corpus)
+    print(f"HTML-дашборд сохранён: {args.html}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="retrieval_fairness", description="«code coverage для retrieval»")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -90,6 +103,7 @@ def main(argv: list[str] | None = None) -> int:
     p_probe.add_argument("--queries", required=True, help="JSONL: {id, vector, text?}")
     p_probe.add_argument("--top-k", type=int, default=10)
     p_probe.add_argument("--json", help="путь для JSON-экспорта отчёта")
+    p_probe.add_argument("--html", help="путь для HTML-дашборда")
     p_probe.set_defaults(func=cmd_probe)
 
     p_demo = sub.add_parser("demo", help="демо на синтетическом корпусе")
@@ -105,6 +119,12 @@ def main(argv: list[str] | None = None) -> int:
     p_demo_diff = sub.add_parser("demo-diff", help="демо regression diff при смене эмбеддера")
     p_demo_diff.add_argument("--top-k", type=int, default=5)
     p_demo_diff.set_defaults(func=cmd_demo_diff)
+
+    p_dash = sub.add_parser("dashboard", help="HTML-дашборд из baseline JSON")
+    p_dash.add_argument("--baseline", required=True)
+    p_dash.add_argument("--html", required=True)
+    p_dash.add_argument("--corpus", help="JSONL с векторами для PCA-проекции")
+    p_dash.set_defaults(func=cmd_dashboard)
 
     args = parser.parse_args(argv)
     return args.func(args)
