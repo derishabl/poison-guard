@@ -77,12 +77,50 @@ class SentenceTransformerEmbedder:
         return self._dim_val
 
 
+class FastembedEmbedder:
+    """
+    Dense-эмбеддер через fastembed (ONNX на CPU, без тяжёлого torch).
+    Лёгкая альтернатива sentence-transformers; хорошо работает на CPU.
+    Optional: pip install fastembed.
+    """
+
+    def __init__(self, model_name: str = "BAAI/bge-small-en-v1.5"):
+        try:
+            from fastembed import TextEmbedding
+        except ImportError as e:
+            raise ImportError(
+                "FastembedEmbedder requires fastembed: pip install fastembed"
+            ) from e
+        self._model = TextEmbedding(model_name=model_name)
+        # dim узнаётся лениво при первом encode
+        self._dim_val: int | None = None
+
+    def fit(self, texts: list[str]) -> "FastembedEmbedder":
+        return self  # no-op для dense
+
+    def encode(self, texts: list[str]) -> np.ndarray:
+        vecs = list(self._model.embed(texts))
+        arr = np.array(vecs, dtype=float)
+        if self._dim_val is None and arr.size > 0:
+            self._dim_val = arr.shape[1]
+        return arr
+
+    @property
+    def dim(self) -> int:
+        if self._dim_val is None:
+            raise RuntimeError("dim unknown until first encode()")
+        return self._dim_val
+
+
 def get_embedder(name: str, **kw) -> Embedder:
-    """Реестр эмбеддеров: 'tfidf' | 'minilm' | 'sbert'."""
+    """Реестр эмбеддеров: 'tfidf' | 'minilm' | 'sbert' | 'fastembed' | 'bge'."""
     name = name.lower()
     if name == "tfidf":
         return TfidfEmbedder(**kw)
     if name in ("minilm", "sbert"):
         model = "sentence-transformers/all-MiniLM-L6-v2" if name == "minilm" else kw.pop("model_name", None)
         return SentenceTransformerEmbedder(model_name=model) if name == "minilm" else SentenceTransformerEmbedder(**kw)
+    if name in ("fastembed", "bge"):
+        model = "BAAI/bge-small-en-v1.5" if name == "bge" else kw.pop("model_name", "BAAI/bge-small-en-v1.5")
+        return FastembedEmbedder(model_name=model)
     raise ValueError(f"unknown embedder: {name}")

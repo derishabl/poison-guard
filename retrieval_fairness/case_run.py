@@ -104,7 +104,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--corpus", required=True)
     ap.add_argument("--queries", required=True)
-    ap.add_argument("--embedder", default="tfidf", choices=["tfidf", "minilm"])
+    ap.add_argument("--embedder", default="tfidf", choices=["tfidf", "minilm", "fastembed", "bge"])
     ap.add_argument("--top-k", type=int, default=10)
     ap.add_argument("--out", required=True, help="prefix for outputs (no extension)")
     ap.add_argument("--html", help="path for HTML dashboard")

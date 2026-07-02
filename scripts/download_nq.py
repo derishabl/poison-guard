@@ -47,22 +47,31 @@ def main() -> int:
             f.write(json.dumps({"id": str(r["_id"]), "text": full}, ensure_ascii=False) + "\n")
     print(f"  corpus: {len(corpus_ds)} chunks")
 
-    # queries
+    # queries (тексты — в BeIR/nq config 'queries')
     print("loading queries...")
-    queries_ds = load_dataset("BeIR/nq-qrels", split=args.split)
+    qrels_ds = load_dataset("BeIR/nq-qrels", split=args.split)
+    queries_ds = load_dataset("BeIR/nq", "queries", split="queries")
+    # индекс по query-id -> text
+    qid_to_text = {str(r["_id"]): r.get("text", "") for r in queries_ds}
+    # qrels: query-id -> {corpus-id: score}
+    qrels: dict[str, dict[str, int]] = {}
+    qids_seen: list[str] = []
+    seen = set()
+    for r in qrels_ds:
+        qid = str(r["query-id"])
+        qrels.setdefault(qid, {})[str(r["corpus-id"])] = int(r["score"])
+        if qid not in seen:
+            seen.add(qid); qids_seen.append(qid)
     if args.sample_queries > 0:
-        queries_ds = queries_ds.select(range(min(args.sample_queries, len(queries_ds))))
+        qids_seen = qids_seen[: args.sample_queries]
+        qrels = {k: v for k, v in qrels.items() if k in set(qids_seen)}
     with open(os.path.join(args.out, "queries.jsonl"), "w", encoding="utf-8") as f:
-        for r in queries_ds:
-            f.write(json.dumps({"id": str(r["query-id"]), "text": r.get("query", "")}, ensure_ascii=False) + "\n")
-    # qrels
+        for qid in qids_seen:
+            txt = qid_to_text.get(qid, "")
+            f.write(json.dumps({"id": qid, "text": txt}, ensure_ascii=False) + "\n")
     with open(os.path.join(args.out, "qrels.json"), "w", encoding="utf-8") as f:
-        qrels = {}
-        for r in queries_ds:
-            qid = str(r["query-id"])
-            qrels.setdefault(qid, {})[str(r["corpus-id"])] = int(r["score"])
         json.dump(qrels, f)
-    print(f"  queries: {len(queries_ds)}")
+    print(f"  queries: {len(qids_seen)}")
     print("Done.")
     return 0
 
