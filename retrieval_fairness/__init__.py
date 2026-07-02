@@ -10,7 +10,7 @@ exposure (Gini), захват хабами, и regression-diff при смене
 """
 
 from retrieval_fairness.types import Chunk, Hit, Query, VectorStore
-from retrieval_fairness.stores import InMemoryVectorStore
+from retrieval_fairness.adapters import InMemoryVectorStore
 from retrieval_fairness.metrics import (
     coverage,
     gini,

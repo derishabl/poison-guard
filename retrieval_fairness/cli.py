@@ -16,7 +16,7 @@ import json
 import sys
 
 from retrieval_fairness.types import Chunk, Query
-from retrieval_fairness.stores import InMemoryVectorStore
+from retrieval_fairness.adapters import InMemoryVectorStore
 from retrieval_fairness.probe import probe
 
 

@@ -79,7 +79,7 @@ def synth_probe(
 
     Возвращает ProbeResult.
     """
-    from retrieval_fairness.stores import InMemoryVectorStore
+    from retrieval_fairness.adapters import InMemoryVectorStore
     from retrieval_fairness.probe import probe
 
     queries, vec = synth_queries_from_corpus(
