@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "retrieval-fairness"
+version = "0.1.0"
+description = "Code coverage for retrieval: audit exposure bias in vector search / RAG"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [{name = "derishabl"}]
+keywords = ["rag", "vector-search", "retrieval", "fairness", "audit", "exposure", "coverage"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+dependencies = [
+    "numpy>=1.24",
+    "scikit-learn>=1.3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+retrieval-fairness = "retrieval_fairness.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["retrieval_fairness*"]
