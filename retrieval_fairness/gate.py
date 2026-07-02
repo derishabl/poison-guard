@@ -4,12 +4,13 @@ gate.py — CI-гейт для retrieval-fairness.
 Сравнивает candidate (новый прогон) с baseline по настраиваемым правилам.
 Возвращает exit code: 0 = гейт пройден, 1 = нарушено правило (для CI).
 
-Правила (по умолчанию advisory, opt-in strict). Пороги — в долях (0..1);
-правило активно, если флаг передан (0 = zero tolerance):
-  --max-coverage-drop 0.05      coverage не должен упасть более чем на 5 п.п.
-  --max-dark-matter-rise 0.05   dark-matter не должен вырасти более чем на 5 п.п.
+Правила (по умолчанию advisory, opt-in strict). Пороги — доли 0..1
+(0.05 = 5%); правило активно, если флаг передан; 0 = zero tolerance
+(любое ухудшение = fail):
+  --max-coverage-drop 0.05      coverage не должен упасть более чем на 5%
+  --max-dark-matter-rise 0.05   dark-matter не должен вырасти более чем на 5%
   --max-gini-rise 0.1           Gini не должен вырасти более чем на 0.1
-  --min-query-overlap 0.8       средний per-query overlap не ниже 0.8
+  --min-query-overlap 0.8       средний per-query overlap не ниже 0.8 (80%)
   --strict                      нарушения = exit 1 (иначе advisory, exit 0)
 
 Использование в CI:
@@ -24,6 +25,32 @@ import sys
 
 from retrieval_fairness.serialize import load_probe
 from retrieval_fairness.diff import diff_reports
+
+
+# Все пороги — доли 0..1. Валидация защищает от молчаливого «5 = 500%»
+# (доверие к CI-гейту: out-of-range порог = гейт, который никогда не сработает).
+_PCT_RULES = {"coverage_drop", "dark_matter_rise", "query_overlap"}  # 0..1, показываем в %
+_GINI_RULES = {"gini_rise"}                                          # 0..1, показываем как есть
+
+
+def _validate_threshold(name: str, value: float | None, lo: float = 0.0, hi: float = 1.0) -> None:
+    """Проверить, что порог в допустимом диапазоне; иначе ValueError."""
+    if value is None:
+        return
+    if not (lo <= value <= hi):
+        raise ValueError(
+            f"--{name.replace('_', '-')}={value} вне диапазона [{lo}, {hi}] "
+            f"(доли 0..1; 0.05 = 5%). Используйте долю, не проценты."
+        )
+
+
+def _fmt(name: str, value: float) -> str:
+    """Отформатировать значение с единицами по типу правила."""
+    if name in _PCT_RULES:
+        return f"{value*100:.2f}%"
+    if name in _GINI_RULES:
+        return f"{value:+.4f}"
+    return f"{value:.4f}"
 
 
 @dataclass
@@ -44,7 +71,11 @@ class GateResult:
         lines = ["=" * 60, "GATE", "=" * 60]
         for r in self.rules:
             mark = "PASS" if r.passed else "FAIL"
-            lines.append(f"  [{mark}] {r.name:30} actual={r.actual:+.4f}  threshold={r.threshold:+.4f}")
+            cmp = "<=" if r.direction in ("drop", "rise") else ">="
+            lines.append(
+                f"  [{mark}] {r.name:22} actual={_fmt(r.name, r.actual):>10}  "
+                f"{cmp} threshold={_fmt(r.name, r.threshold):>10}"
+            )
         verdict = "GATE PASSED" if self.passed else "GATE FAILED"
         lines.append("-" * 60)
         lines.append(f"  {verdict}")
@@ -67,6 +98,12 @@ def evaluate_gate(
     base = load_probe(baseline_path)
     cand = load_probe(candidate_path)
     d = diff_reports(base, cand)
+
+    # Валидация порогов ДО прогона — out-of-range = явная ошибка, не молчаливый pass.
+    _validate_threshold("max_coverage_drop", max_coverage_drop)
+    _validate_threshold("max_dark_matter_rise", max_dark_matter_rise)
+    _validate_threshold("max_gini_rise", max_gini_rise)
+    _validate_threshold("min_query_overlap", min_query_overlap)
 
     rules: list[GateRule] = []
 
@@ -96,15 +133,26 @@ def evaluate_gate(
 
 
 def run_gate_cli(args) -> int:
-    """CLI handler. Возвращает exit code."""
-    res = evaluate_gate(
-        baseline_path=args.baseline,
-        candidate_path=args.candidate,
-        max_coverage_drop=args.max_coverage_drop,
-        max_dark_matter_rise=args.max_dark_matter_rise,
-        max_gini_rise=args.max_gini_rise,
-        min_query_overlap=args.min_query_overlap,
-    )
+    """CLI handler. Возвращает exit code.
+    0 = гейт пройден; 1 = нарушено правило (strict); 2 = ошибка ввода
+    (невалидный порог / файл) — печатаем человекочитаемо, без трейсбека."""
+    try:
+        res = evaluate_gate(
+            baseline_path=args.baseline,
+            candidate_path=args.candidate,
+            max_coverage_drop=args.max_coverage_drop,
+            max_dark_matter_rise=args.max_dark_matter_rise,
+            max_gini_rise=args.max_gini_rise,
+            min_query_overlap=args.min_query_overlap,
+        )
+    except ValueError as e:
+        print(f"ОШИБКА: {e}", file=sys.stderr)
+        print("Пороги gate — доли 0..1 (0.05 = 5%). 0 = zero tolerance.", file=sys.stderr)
+        return 2
+    except (FileNotFoundError, KeyError) as e:
+        print(f"ОШИБКА: не удалось загрузить baseline/candidate: {e}", file=sys.stderr)
+        print("Файл должен быть сохранён через `probe --json` (формат save_probe).", file=sys.stderr)
+        return 2
     print(res)
     if not res.passed:
         if args.strict:

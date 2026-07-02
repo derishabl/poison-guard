@@ -192,13 +192,13 @@ def main(argv: list[str] | None = None) -> int:
     p_gate.add_argument("--baseline", required=True)
     p_gate.add_argument("--candidate", required=True)
     p_gate.add_argument("--max-coverage-drop", type=float, default=None,
-                        help="макс. падение coverage (доли, 0..1; 0 = zero tolerance)")
+                        help="макс. падение coverage: доля 0..1 (0.05 = 5%%); 0 = zero tolerance")
     p_gate.add_argument("--max-dark-matter-rise", type=float, default=None,
-                        help="макс. рост dark-matter (доли, 0..1; 0 = zero tolerance)")
+                        help="макс. рост dark-matter: доля 0..1 (0.05 = 5%%); 0 = zero tolerance")
     p_gate.add_argument("--max-gini-rise", type=float, default=None,
-                        help="макс. рост Gini (0 = zero tolerance)")
+                        help="макс. рост Gini (0..1; 0 = zero tolerance)")
     p_gate.add_argument("--min-query-overlap", type=float, default=None,
-                        help="мин. средний per-query overlap (0..1)")
+                        help="мин. средний per-query overlap: доля 0..1 (0.8 = 80%%)")
     p_gate.add_argument("--strict", action="store_true", help="нарушение -> exit 1 (для CI)")
     p_gate.set_defaults(func=cmd_gate)
 

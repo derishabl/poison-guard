@@ -117,6 +117,42 @@ def _real_drop_queries():
     return [Query(id="q1", vector=[1.0, 0.0]), Query(id="q2", vector=[1.0, 0.005])]
 
 
+def test_gate_rejects_out_of_range_threshold():
+    base = probe(InMemoryVectorStore(_real_drop_chunks()), _real_drop_queries(), top_k=4)
+    cand = probe(InMemoryVectorStore(_real_drop_chunks()), _real_drop_queries(), top_k=1)
+    with tempfile.TemporaryDirectory() as d:
+        b = _save(base, d, "b.json")
+        c = _save(cand, d, "c.json")
+        # 5.0 вне [0,1] — раньше молча pass (гейт, который никогда не сработает)
+        try:
+            evaluate_gate(b, c, max_coverage_drop=5.0)
+            assert False, "expected ValueError for out-of-range threshold"
+        except ValueError:
+            pass
+        # отрицательный порог тоже невалиден
+        try:
+            evaluate_gate(b, c, max_dark_matter_rise=-0.1)
+            assert False
+        except ValueError:
+            pass
+
+
+def test_gate_validates_all_threshold_ranges():
+    base = probe(InMemoryVectorStore(_real_drop_chunks()), _real_drop_queries(), top_k=4)
+    with tempfile.TemporaryDirectory() as d:
+        b = _save(base, d, "b.json")
+        c = _save(base, d, "c.json")
+        # граница 1.0 и 0.0 — валидны
+        evaluate_gate(b, c, max_coverage_drop=1.0, max_dark_matter_rise=1.0,
+                      max_gini_rise=1.0, min_query_overlap=0.0)
+        # gini_rise > 1.0 — невалиден
+        try:
+            evaluate_gate(b, c, max_gini_rise=2.0)
+            assert False
+        except ValueError:
+            pass
+
+
 def test_probe_to_gate_end_to_end_cli(tmp_path=None):
     """
     Блокер-сценарий: probe --json (через save_probe) -> gate --baseline.
