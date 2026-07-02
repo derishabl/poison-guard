@@ -40,10 +40,47 @@ def _load_queries(path: str) -> list[Query]:
     return [Query(id=r["id"], vector=r["vector"], text=r.get("text", "")) for r in rows]
 
 
+def _build_store_from_args(args, corpus: list[Chunk] | None = None):
+    """Построить стор по --store и connection-аргументам."""
+    store_name = getattr(args, "store", "inmemory")
+    if store_name == "inmemory":
+        if corpus is None:
+            raise ValueError("inmemory store requires --corpus")
+        return InMemoryVectorStore(corpus)
+    if store_name == "faiss":
+        from retrieval_fairness.adapters.faiss import FaissAdapter
+        return FaissAdapter(index_path=args.index_path, ids_map_path=getattr(args, "ids_map", None))
+    if store_name == "pgvector":
+        from retrieval_fairness.adapters.pgvector import PgvectorAdapter
+        return PgvectorAdapter(database_url=args.database_url, table=getattr(args, "table", "docs"),
+                               column=getattr(args, "column", "embedding"))
+    if store_name == "qdrant":
+        from retrieval_fairness.adapters.qdrant import QdrantAdapter
+        return QdrantAdapter(url=args.url, collection=args.collection, api_key=getattr(args, "api_key", None))
+    raise ValueError(f"unknown store: {store_name}")
+
+
+def _add_store_args(p) -> None:
+    """Добавить --store + connection-аргументы в subparser."""
+    p.add_argument("--store", choices=["inmemory", "faiss", "pgvector", "qdrant"], default="inmemory")
+    # inmemory: --corpus (уже есть отдельно)
+    # faiss
+    p.add_argument("--index-path", help="FAISS: путь к .faiss индексу")
+    p.add_argument("--ids-map", help="FAISS: JSON {ids:[...]} sidecar")
+    # pgvector
+    p.add_argument("--database-url", help="pgvector: postgres connection string")
+    p.add_argument("--table", default="docs", help="pgvector: таблица")
+    p.add_argument("--column", default="embedding", help="pgvector: векторная колонка")
+    # qdrant
+    p.add_argument("--url", help="Qdrant: endpoint")
+    p.add_argument("--collection", help="Qdrant: коллекция")
+    p.add_argument("--api-key", help="Qdrant: API key (cloud)")
+
+
 def cmd_probe(args: argparse.Namespace) -> int:
-    corpus = _load_corpus(args.corpus)
+    corpus = _load_corpus(args.corpus) if args.corpus else None
     queries = _load_queries(args.queries)
-    store = InMemoryVectorStore(corpus)
+    store = _build_store_from_args(args, corpus=corpus)
     result = probe(store, queries, top_k=args.top_k)
     assert result.report is not None
     print(result.report)
@@ -53,9 +90,9 @@ def cmd_probe(args: argparse.Namespace) -> int:
         print(f"\nJSON-отчёт сохранён: {args.json}")
     if args.html:
         from retrieval_fairness.dashboard import render_dashboard
-        render_dashboard(result, args.html,
-                         chunks_vectors=[c.vector for c in corpus],
-                         chunk_ids=[c.id for c in corpus])
+        vecs = [c.vector for c in corpus] if corpus else None
+        ids = [c.id for c in corpus] if corpus else None
+        render_dashboard(result, args.html, chunks_vectors=vecs, chunk_ids=ids)
         print(f"HTML-дашборд сохранён: {args.html}")
     return 0
 
@@ -123,11 +160,12 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_probe = sub.add_parser("probe", help="прогнать workload и напечатать отчёт exposure")
-    p_probe.add_argument("--corpus", required=True, help="JSONL: {id, vector, text?}")
+    p_probe.add_argument("--corpus", help="JSONL: {id, vector, text?} (для inmemory / PCA в дашборде)")
     p_probe.add_argument("--queries", required=True, help="JSONL: {id, vector, text?}")
     p_probe.add_argument("--top-k", type=int, default=10)
     p_probe.add_argument("--json", help="путь для JSON-экспорта отчёта")
     p_probe.add_argument("--html", help="путь для HTML-дашборда")
+    _add_store_args(p_probe)
     p_probe.set_defaults(func=cmd_probe)
 
     p_demo = sub.add_parser("demo", help="демо на синтетическом корпусе")
