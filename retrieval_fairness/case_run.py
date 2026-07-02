@@ -63,7 +63,11 @@ def run_case(
     emb = get_embedder(embedder_name)
     texts = [c.text for c in corpus]
     q_texts = [q.get("text", q["id"]) for q in queries]
-    emb.fit(texts + q_texts)  # TF-IDF: fit на всём; MiniLM: no-op
+    # fit ТОЛЬКО на корпусе — запросы не входят в vocabulary.
+    # Иначе векторы корпуса зависят от набора запросов, и diff между прогонами
+    # с разными запросами портится (silent wrong result). Для dense (MiniLM/BGE)
+    # fit — no-op, так что поведение не меняется.
+    emb.fit(texts)
     print(f"[case] encoding corpus...")
     chunk_vecs = emb.encode(texts)
     print(f"[case] encoding queries...")

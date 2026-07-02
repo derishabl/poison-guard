@@ -12,9 +12,25 @@ adapters/pgvector.py — pgvector-адаптер.
 
 from __future__ import annotations
 from typing import Iterator
+import re
 
 from retrieval_fairness.types import Hit
 from retrieval_fairness.adapters.base import BaseVectorStoreAdapter
+
+# Идентификаторы SQL (table/column/id_column) вставляются в запрос через f-string,
+# поэтому валидируем жёстко: только буквы/цифры/_/. и старт не с цифры.
+# Это защита от SQL-инъекции через CLI --table/--column/--id-column.
+_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
+_ALLOWED_DISTANCE_OPS = {"<=>", "<->", "<#>"}  # cosine / L2 / inner product
+
+
+def _validate_ident(value: str, field: str) -> str:
+    if not _IDENT_RE.fullmatch(value):
+        raise ValueError(
+            f"pgvector: {field}={value!r} не валидный SQL-идентификатор "
+            f"(допустимы [A-Za-z_][A-Za-z0-9_.]*)"
+        )
+    return value
 
 
 class PgvectorAdapter(BaseVectorStoreAdapter):
@@ -45,9 +61,14 @@ class PgvectorAdapter(BaseVectorStoreAdapter):
                 "PgvectorAdapter requires psycopg: pip install 'retrieval-fairness[pgvector]'"
             ) from e
         self._database_url = database_url
-        self._table = table
-        self._column = column
-        self._id_column = id_column
+        self._table = _validate_ident(table, "table")
+        self._column = _validate_ident(column, "column")
+        self._id_column = _validate_ident(id_column, "id_column")
+        if distance_op not in _ALLOWED_DISTANCE_OPS:
+            raise ValueError(
+                f"pgvector: distance_op={distance_op!r} не разрешён "
+                f"(допустимы {sorted(_ALLOWED_DISTANCE_OPS)})"
+            )
         self._distance_op = distance_op
 
     def _connect(self):

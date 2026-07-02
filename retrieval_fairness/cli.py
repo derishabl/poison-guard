@@ -20,6 +20,30 @@ from retrieval_fairness.adapters import InMemoryVectorStore
 from retrieval_fairness.probe import probe
 
 
+def _cli_error(msg: str) -> int:
+    """Печать человекочитаемой ошибки CLI без трейсбека + exit 2."""
+    import sys
+    print(f"ОШИБКА: {msg}", file=sys.stderr)
+    return 2
+
+
+def _wrap_cli(fn):
+    """Декоратор CLI-команды: ловит ошибки ввода -> exit 2 с человеком-сообщением.
+    Покрывает: нет файла, нет обязательного аргумента, невалидный аргумент сторa."""
+    import functools, sys
+    @functools.wraps(fn)
+    def wrapper(args):
+        try:
+            return fn(args)
+        except FileNotFoundError as e:
+            return _cli_error(f"файл не найден: {e.filename or e}")
+        except (ValueError, KeyError) as e:
+            return _cli_error(str(e))
+        except ImportError as e:
+            return _cli_error(f"отсутствует зависимость: {e}. Установите optional-dep, см. docs/adapters.md")
+    return wrapper
+
+
 def _load_jsonl(path: str) -> list[dict]:
     out = []
     with open(path, encoding="utf-8") as f:
@@ -77,6 +101,7 @@ def _add_store_args(p) -> None:
     p.add_argument("--api-key", help="Qdrant: API key (cloud)")
 
 
+@_wrap_cli
 def cmd_probe(args: argparse.Namespace) -> int:
     corpus = _load_corpus(args.corpus) if args.corpus else None
     queries = _load_queries(args.queries)
@@ -129,6 +154,7 @@ def cmd_demo_diff(args: argparse.Namespace) -> int:
     return 0
 
 
+@_wrap_cli
 def cmd_dashboard(args: argparse.Namespace) -> int:
     from retrieval_fairness.dashboard import render_dashboard_from_baseline
     render_dashboard_from_baseline(args.baseline, args.html, corpus_path=args.corpus)
@@ -141,6 +167,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
     return run_gate_cli(args)
 
 
+@_wrap_cli
 def cmd_synth(args: argparse.Namespace) -> int:
     from retrieval_fairness.synth import synth_probe
     corpus = _load_corpus(args.corpus)
