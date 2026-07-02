@@ -1,0 +1,84 @@
+"""
+adapters/pgvector.py — pgvector-адаптер.
+
+Работает поверх PostgreSQL + pgvector: поиск через оператор <=>
+(cosine distance) или <-> (L2). Требует psycopg3.
+
+Зависимость: pip install 'retrieval-fairness[pgvector]'
+
+Тесты skip'аются без DATABASE_URL (нет инстанса). В CI — docker-compose
+с pgvector (см. план §10.6).
+"""
+
+from __future__ import annotations
+from typing import Iterator
+
+from retrieval_fairness.types import Hit
+from retrieval_fairness.adapters.base import BaseVectorStoreAdapter
+
+
+class PgvectorAdapter(BaseVectorStoreAdapter):
+    """
+    pgvector-адаптер.
+
+    database_url: psycopg connection string (postgres://...).
+    table: таблица с документами (должна содержать id-колонку 'id' и
+           векторную колонку column).
+    column: имя векторной колонки.
+    id_column: имя id-колонки (по умолчанию 'id').
+    distance_op: '<=>' (cosine) | '<->' (L2) | '<#>' (inner product).
+    """
+
+    def __init__(
+        self,
+        database_url: str,
+        table: str = "docs",
+        column: str = "embedding",
+        id_column: str = "id",
+        distance_op: str = "<=>",
+    ):
+        super().__init__()
+        try:
+            import psycopg  # noqa: F401
+        except ImportError as e:
+            raise ImportError(
+                "PgvectorAdapter requires psycopg: pip install 'retrieval-fairness[pgvector]'"
+            ) from e
+        self._database_url = database_url
+        self._table = table
+        self._column = column
+        self._id_column = id_column
+        self._distance_op = distance_op
+
+    def _connect(self):
+        import psycopg
+        return psycopg.connect(self._database_url)
+
+    def _search(self, query_vec: list[float], top_k: int) -> list[Hit]:
+        # параметризуем вектор как строку '[v1,v2,...]' — pgvector парсит
+        vec_str = "[" + ",".join(f"{v:.8g}" for v in query_vec) + "]"
+        sql = (
+            f"SELECT {self._id_column}, {self._column} {self._distance_op} %s AS dist "
+            f"FROM {self._table} ORDER BY {self._column} {self._distance_op} %s LIMIT %s"
+        )
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(sql, (vec_str, vec_str, top_k))
+            rows = cur.fetchall()
+        out = []
+        for rank, (cid, dist) in enumerate(rows, start=1):
+            # для cosine dist (0=same, 2=opposite); score = 1 - dist/2 (~similarity)
+            score = 1.0 - float(dist) / 2.0 if self._distance_op == "<=>" else -float(dist)
+            out.append(Hit(chunk_id=str(cid), score=score, rank=rank))
+        return out
+
+    def _list_chunk_ids(self) -> Iterator[str]:
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(f"SELECT {self._id_column} FROM {self._table}")
+            for (cid,) in cur.fetchall():
+                yield str(cid)
+
+    @property
+    def size(self) -> int:
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(f"SELECT COUNT(*) FROM {self._table}")
+            return cur.fetchone()[0]
