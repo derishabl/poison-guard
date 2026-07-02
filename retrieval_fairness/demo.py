@@ -117,3 +117,44 @@ def run_demo(top_k: int = 5) -> None:
     hub_in_top = sum(1 for hits in result.hits_per_query if "HUB_universal" in hits)
     print(f"\nХаб 'HUB_universal' попал в top-{top_k} в {hub_in_top}/{len(queries)} запросах")
     print("  → иллюстрация hub capture: общий чанк вытесняет узкотематичные")
+
+
+def _rebuild_with_new_embedder(chunks: list[Chunk], queries: list[Query]):
+    """
+    Имитация миграции эмбеддера: новый TfidfVectorizer с другим ngram_range
+    поверх ТЕХ ЖЕ текстов. Возвращает новые chunks и queries с пересчитанными
+    векторами. Имитирует «сменили эмбеддер — что поменялось в retrieval».
+    """
+    texts = [c.text for c in chunks]
+    query_texts = [q.text for q in queries]
+    new_vec = TfidfVectorizer(ngram_range=(1, 2))  # было (1,1) по умолчанию
+    all_texts = texts + query_texts
+    new_vec.fit(all_texts)
+    new_chunk_vecs = new_vec.transform(texts).toarray().astype(float)
+    new_query_vecs = new_vec.transform(query_texts).toarray().astype(float)
+    new_chunks = [Chunk(id=c.id, text=c.text, vector=v.tolist()) for c, v in zip(chunks, new_chunk_vecs)]
+    new_queries = [Query(id=q.id, vector=v.tolist(), text=q.text) for q, v in zip(queries, new_query_vecs)]
+    return new_chunks, new_queries
+
+
+def run_migration_diff_demo(top_k: int = 5) -> None:
+    """Демонстрация regression diff: baseline (TF-IDF 1-gram) vs new (1-2 gram)."""
+    from retrieval_fairness.diff import diff_reports
+
+    chunks, vec = _build_corpus()
+    queries = _build_queries(vec)
+    baseline = probe(InMemoryVectorStore(chunks), queries, top_k=top_k)
+
+    new_chunks, new_queries = _rebuild_with_new_embedder(chunks, queries)
+    candidate = probe(InMemoryVectorStore(new_chunks), new_queries, top_k=top_k)
+
+    print("=" * 64)
+    print("ДЕМО: regression diff при миграции эмбеддера (1-gram -> 1,2-gram)")
+    print("=" * 64)
+    print("\n--- BASELINE ---")
+    print(baseline.report)
+    print("\n--- CANDIDATE ---")
+    print(candidate.report)
+    print()
+    d = diff_reports(baseline, candidate)
+    print(d)

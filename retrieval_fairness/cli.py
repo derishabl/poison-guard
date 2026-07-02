@@ -60,6 +60,27 @@ def cmd_demo(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_diff(args: argparse.Namespace) -> int:
+    from retrieval_fairness.serialize import load_probe
+    from retrieval_fairness.diff import diff_reports
+    base = load_probe(args.baseline)
+    cand = load_probe(args.candidate)
+    d = diff_reports(base, cand)
+    print(d)
+    if args.json:
+        import json as _json
+        with open(args.json, "w", encoding="utf-8") as f:
+            _json.dump(d.to_dict(), f, ensure_ascii=False, indent=2)
+        print(f"\nJSON-diff сохранён: {args.json}")
+    return 0
+
+
+def cmd_demo_diff(args: argparse.Namespace) -> int:
+    from retrieval_fairness.demo import run_migration_diff_demo
+    run_migration_diff_demo(top_k=args.top_k)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="retrieval_fairness", description="«code coverage для retrieval»")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -74,6 +95,16 @@ def main(argv: list[str] | None = None) -> int:
     p_demo = sub.add_parser("demo", help="демо на синтетическом корпусе")
     p_demo.add_argument("--top-k", type=int, default=5)
     p_demo.set_defaults(func=cmd_demo)
+
+    p_diff = sub.add_parser("diff", help="сравнить два baseline JSON")
+    p_diff.add_argument("--baseline", required=True)
+    p_diff.add_argument("--candidate", required=True)
+    p_diff.add_argument("--json", help="путь для JSON-экспорта diff")
+    p_diff.set_defaults(func=cmd_diff)
+
+    p_demo_diff = sub.add_parser("demo-diff", help="демо regression diff при смене эмбеддера")
+    p_demo_diff.add_argument("--top-k", type=int, default=5)
+    p_demo_diff.set_defaults(func=cmd_demo_diff)
 
     args = parser.parse_args(argv)
     return args.func(args)
