@@ -99,6 +99,25 @@ def cmd_gate(args: argparse.Namespace) -> int:
     return run_gate_cli(args)
 
 
+def cmd_synth(args: argparse.Namespace) -> int:
+    from retrieval_fairness.synth import synth_probe
+    corpus = _load_corpus(args.corpus)
+    result = synth_probe(corpus, top_k=args.top_k, n_per_chunk=args.n_per_chunk,
+                         n_terms=args.n_terms, query_style=args.style)
+    print(result.report)
+    if args.json:
+        with open(args.json, "w", encoding="utf-8") as f:
+            json.dump(result.report.to_dict(), f, ensure_ascii=False, indent=2)
+        print(f"\nJSON-отчёт сохранён: {args.json}")
+    if args.html:
+        from retrieval_fairness.dashboard import render_dashboard
+        render_dashboard(result, args.html,
+                         chunks_vectors=[c.vector for c in corpus],
+                         chunk_ids=[c.id for c in corpus])
+        print(f"HTML-дашборд сохранён: {args.html}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="retrieval_fairness", description="«code coverage для retrieval»")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -140,6 +159,16 @@ def main(argv: list[str] | None = None) -> int:
     p_gate.add_argument("--min-query-overlap", type=float, default=0.0)
     p_gate.add_argument("--strict", action="store_true", help="нарушение -> exit 1 (для CI)")
     p_gate.set_defaults(func=cmd_gate)
+
+    p_synth = sub.add_parser("synth", help="синтетические запросы из корпуса (без query-логов)")
+    p_synth.add_argument("--corpus", required=True, help="JSONL: {id, text, vector}")
+    p_synth.add_argument("--top-k", type=int, default=10)
+    p_synth.add_argument("--n-per-chunk", type=int, default=1)
+    p_synth.add_argument("--n-terms", type=int, default=5)
+    p_synth.add_argument("--style", choices=["keywords", "text"], default="keywords")
+    p_synth.add_argument("--json", help="путь для JSON-экспорта отчёта")
+    p_synth.add_argument("--html", help="путь для HTML-дашборда")
+    p_synth.set_defaults(func=cmd_synth)
 
     args = parser.parse_args(argv)
     return args.func(args)
