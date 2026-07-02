@@ -19,3 +19,6 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Data (BEIR NQ etc., large)
+data/
