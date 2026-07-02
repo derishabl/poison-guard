@@ -48,14 +48,28 @@ class QdrantAdapter(BaseVectorStoreAdapter):
         return QdrantClient(url=self._url, api_key=self._api_key)
 
     def _search(self, query_vec: list[float], top_k: int) -> list[Hit]:
-        from qdrant_client.models import SearchParams
+        from qdrant_client.models import SearchParams, Query
         with self._client() as client:
-            res = client.search(
-                collection_name=self._collection,
-                query_vector=query_vec if self._vector_name is None else (self._vector_name, query_vec),
-                limit=top_k,
-                search_params=SearchParams(hnsw_ef=128, exact=False),
-            )
+            # client.search() deprecated в qdrant-client >=1.10 (убран в 2.x).
+            # query_points() — современный API. Совместимость: пробуем новый,
+            # при AttributeError падаем на старый (старые версии qdrant-client).
+            query = Query(nearest=query_vec if self._vector_name is None
+                          else {self._vector_name: query_vec})
+            try:
+                res = client.query_points(
+                    collection_name=self._collection,
+                    query=query,
+                    limit=top_k,
+                    search_params=SearchParams(hnsw_ef=128, exact=False),
+                ).points
+            except AttributeError:
+                # старый qdrant-client (<1.10): нет query_points -> search()
+                res = client.search(
+                    collection_name=self._collection,
+                    query_vector=query_vec if self._vector_name is None else (self._vector_name, query_vec),
+                    limit=top_k,
+                    search_params=SearchParams(hnsw_ef=128, exact=False),
+                )
         out = []
         for rank, point in enumerate(res, start=1):
             out.append(Hit(chunk_id=str(point.id), score=float(point.score), rank=rank))
