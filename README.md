@@ -1,30 +1,31 @@
 # retrieval-fairness
 
-**Code coverage для retrieval.** Показывает, какую долю векторного
-корпуса реально достают запросы, а какую — никогда не находят (dark
-matter); меряет концентрацию exposure (Gini), захват хабами, и
-regression-diff при смене эмбеддера/чанкинга.
+**Code coverage for retrieval.** Shows what share of your vector corpus
+is actually reachable by queries and what share is never retrieved
+(dark matter); measures exposure concentration (Gini), hub capture,
+and regression diff when you change the embedder or chunking.
 
-> Статус: ранняя разработка. Это **packaging-новизна** (метрики Gini /
-> retrievability честно заимствованы из IR-fairness / T-Retrievability),
-> не virgin-изобретение. См. `RETRIEVAL_FAIRNESS_PLAN.md`.
+> Status: early development. This is **packaging novelty** (the Gini /
+> retrievability metrics are honestly borrowed from IR-fairness /
+> T-Retrievability research), not a from-scratch invention. See
+> `RETRIEVAL_FAIRNESS_PLAN.md`.
 
-## Установка
-
-```bash
-pip install -e .            # или pip install retrieval-fairness
-```
-
-## Быстрый старт
+## Installation
 
 ```bash
-retrieval-fairness demo --top-k 5          # демо на синтетическом корпусе
-retrieval-fairness demo-diff --top-k 5     # regression diff при миграции эмбеддера
+pip install -e .            # or pip install retrieval-fairness
 ```
 
-## Использование
+## Quick start
 
-### Прогон по реальным запросам
+```bash
+retrieval-fairness demo --top-k 5          # demo on a synthetic corpus
+retrieval-fairness demo-diff --top-k 5     # regression diff for an embedder migration
+```
+
+## Usage
+
+### Run against real queries
 
 ```bash
 # corpus.jsonl: {"id": "...", "text": "...", "vector": [...]}
@@ -33,56 +34,60 @@ retrieval-fairness probe --corpus corpus.jsonl --queries queries.jsonl \
     --top-k 10 --json report.json --html dashboard.html
 ```
 
-### Без query-логов: синтетические запросы из корпуса
+### No query logs: synthetic queries from the corpus
 
 ```bash
 retrieval-fairness synth --corpus corpus.jsonl --top-k 10 --html dashboard.html
 ```
 
-### Regression diff (смена эмбеддера/чанкинга)
+### Regression diff (embedder/chunking change)
 
 ```bash
 retrieval-fairness diff --baseline before.json --candidate after.json
 ```
 
-### CI-гейт
+### CI gate
 
 ```bash
 retrieval-fairness gate --baseline v1.json --candidate new.json --strict \
     --max-coverage-drop 0.05 --max-dark-matter-rise 0.05
-# exit 1 в strict-режиме, если coverage упал > 5 п.п. -> CI блокирует деплой
+# exit 1 in strict mode if coverage dropped > 5 pp -> CI blocks the deploy
 ```
 
-## Метрики
+## Metrics
 
-| Метрика | Что показывает |
+| Metric | What it shows |
 |---|---|
-| Coverage % | доля корпуса, что находится хотя бы раз |
-| Dark matter % | доля, что НИ РАЗУ не нашлась |
-| Gini | концентрация exposure (0 = равномерно, 1 = всё в одном) |
-| Hub capture top5/10 | доля exposure в top-N хабах |
-| Lorenz curve | визуализация неравенства |
-| Per-query overlap | стабильность выдачи при миграции |
+| Coverage % | share of the corpus retrieved at least once |
+| Dark matter % | share NEVER retrieved |
+| Gini | exposure concentration (0 = uniform, 1 = all in one) |
+| Hub capture top5/10 | share of exposure captured by top-N hubs |
+| Lorenz curve | inequality visualization |
+| Per-query overlap | result stability across a migration |
 
-## Как это устроено
+## How it works
 
-- `retrieval_fairness/types.py` — контракт `VectorStore` (Protocol).
-  Любой стор (FAISS, Qdrant, Pinecone, pgvector) приводится к нему
-  адаптером.
-- `stores.py` — `InMemoryVectorStore` для дев/тестов/демо.
+- `retrieval_fairness/types.py` — the `VectorStore` contract (Protocol).
+  Any store (FAISS, Qdrant, Pinecone, pgvector) is bridged to it via
+  an adapter.
+- `stores.py` — `InMemoryVectorStore` for dev/tests/demos.
 - `metrics.py` — coverage, gini, lorenz, hub_capture, FairnessReport.
-- `probe.py` — прогон workload → retrieval-frequency → отчёт.
-- `diff.py` — regression diff между двумя прогонами.
-- `gate.py` — CI-гейт с настраиваемыми правилами.
-- `synth.py` — синтетические запросы из корпуса.
-- `dashboard.py` — автономный HTML-отчёт (Lorenz, histogram, PCA-карта).
+- `probe.py` — run a workload → retrieval frequency → report.
+- `diff.py` — regression diff between two runs.
+- `gate.py` — CI gate with configurable rules.
+- `synth.py` — synthetic queries generated from the corpus.
+- `dashboard.py` — self-contained HTML report (Lorenz, histogram, PCA map).
 
-## Тесты
+Real-scale case study (BEIR NQ, ~50% dark matter, lexical→dense
+regression diff): `docs/case_study_nq.md`. Store adapters:
+`docs/adapters.md`. Comparison with related work: `docs/comparison.md`.
+
+## Tests
 
 ```bash
-pytest tests/ -q    # 36 тестов
+pytest tests/ -q
 ```
 
-## Лицензия
+## License
 
 MIT
