@@ -103,3 +103,29 @@ if __name__ == "__main__":
             print(f"  FAIL  {name}: {e}")
     print(f"\n{passed}/{len(fns)} passed")
     sys.exit(0 if passed == len(fns) else 1)
+
+
+def test_reachability_ceiling_bounds():
+    from retrieval_fairness.metrics import reachability_ceiling
+    # нельзя найти больше уникальных чанков, чем n_queries*top_k, и не больше корпуса
+    assert reachability_ceiling(260000, 3452, 10) == 34520
+    # если корпус меньше потолка — потолок ограничен корпусом
+    assert reachability_ceiling(31, 11, 5) == 31  # 31 < 55
+    assert reachability_ceiling(100, 50, 10) == 100  # 100 < 500
+    # потолок 0 — не найти ничего нельзя
+    assert reachability_ceiling(1000, 0, 10) == 0
+
+
+def test_coverage_of_ceiling_vs_coverage():
+    """На 260k-подобной ситуации coverage ~11.7% = ~88% от workload-потолка."""
+    from retrieval_fairness.metrics import build_report
+    # 100 чанков, 5 запросов, top-4 -> потолок 20; найдено 10 -> coverage 10%, of ceiling 50%
+    freqs = {f"c{i}": (1 if i < 10 else 0) for i in range(100)}
+    rep = build_report(freqs, n_queries=5, top_k=4)
+    assert rep.reachability_ceiling == 20
+    assert abs(rep.coverage_pct - 0.10) < 1e-6
+    assert abs(rep.coverage_of_ceiling - 0.50) < 1e-6
+    # to_dict содержит оба новых поля
+    d = rep.to_dict()
+    assert d["reachability_ceiling"] == 20
+    assert d["coverage_of_ceiling"] == 0.5

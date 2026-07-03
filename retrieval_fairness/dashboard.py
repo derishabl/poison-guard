@@ -162,7 +162,8 @@ def build_html(
 
 <h2>Метрики</h2>
 <div>
-  <div class="metric"><div class="v">{rep.coverage_pct*100:.1f}%</div><div class="l">Coverage</div></div>
+  <div class="metric"><div class="v">{rep.coverage_pct*100:.1f}%</div><div class="l">Coverage (of corpus)</div></div>
+  <div class="metric"><div class="v">{rep.coverage_of_ceiling*100:.1f}%</div><div class="l">Of reachable ceiling ({rep.reachability_ceiling} chunks)</div></div>
   <div class="metric"><div class="v">{rep.dark_matter_pct*100:.1f}%</div><div class="l">Dark matter</div></div>
   <div class="metric"><div class="v">{rep.gini:.3f}</div><div class="l">Gini (0=равномерно)</div></div>
   <div class="metric"><div class="v">{rep.hub_capture_top5*100:.1f}%</div><div class="l">Hub capture top5</div></div>

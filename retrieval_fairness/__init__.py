@@ -16,6 +16,7 @@ from retrieval_fairness.adapters import InMemoryVectorStore
 from retrieval_fairness.metrics import (
     coverage,
     gini,
+    reachability_ceiling,
     dark_matter,
     hub_capture,
     lorenz,

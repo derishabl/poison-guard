@@ -114,6 +114,24 @@ def hub_leaderboard(freqs: dict[str, int], top_n: int = 10) -> list[tuple[str, i
     return sorted(freqs.items(), key=lambda kv: kv[1], reverse=True)[:top_n]
 
 
+def reachability_ceiling(n_chunks: int, n_queries: int, top_k: int) -> int:
+    """
+    Workload-потолок coverage: сколько уникальных чанков В ПРИНЦИПЕ
+    может быть найдено данным workload'ом. Без него нельзя трактовать
+    coverage на больших корпусах: 3452 запроса × top-10 = 34520
+    максимально достижимых чанков, поэтому coverage 11.7% на 260k-корпусе —
+    это 88% от достижимого, а не «ретривер плохой».
+
+    Потолок = min(n_chunks, n_queries * top_k): нельзя найти больше
+    уникальных чанков, чем n_queries*top_k (по top-k на каждый запрос),
+    и не больше, чем есть в корпусе.
+    Novelty-в-packaging: формулировка coverage как «% от workload-потолка»
+    в продукте не встречается (ни у retobs, ни у EmbedAudit, ни у
+    T-Retrievability как продукта); см. docs/case_study_nq.md (полный NQ).
+    """
+    return min(n_chunks, n_queries * top_k)
+
+
 @dataclass
 class FairnessReport:
     """Сводный отчёт по метрикам exposure."""
@@ -129,6 +147,26 @@ class FairnessReport:
     lorenz_curve: list[tuple[float, float]] = field(default_factory=list)
     dark_matter_ids: list[str] = field(default_factory=list)
 
+    @property
+    def reachability_ceiling(self) -> int:
+        """Workload-потолок: сколько уникальных чанков В ПРИНЦИПЕ достижимо."""
+        return reachability_ceiling(self.n_chunks, self.n_queries, self.top_k)
+
+    @property
+    def coverage_of_ceiling(self) -> float:
+        """
+        Coverage как доля ОТ ДОСТИЖИМОГО ПОТОЛКА, а не от всего корпуса.
+        1.0 = ретривер исчерпал всё, что workload физически может достать
+        (не вина ретривера, что потолок < корпуса). Импользовать вместе
+        с coverage_pct: последний — «процент корпуса», этот — «насколько
+        хорошо отработано в рамках достижимого».
+        """
+        ceil = self.reachability_ceiling
+        if ceil <= 0:
+            return 0.0
+        found = round(self.coverage_pct * self.n_chunks)  # найдено уникальных чанков
+        return min(1.0, found / ceil)
+
     def __str__(self) -> str:
         lines = [
             "=" * 64,
@@ -139,6 +177,7 @@ class FairnessReport:
             f"  top-k:    {self.top_k}",
             "-" * 64,
             f"  Coverage:     {self.coverage_pct*100:6.2f}%   (доля корпуса, что находится)",
+            f"  из достижимого: {self.coverage_of_ceiling*100:6.2f}%   (от workload-потолка {self.reachability_ceiling} чанков)",
             f"  Dark matter:  {self.dark_matter_pct*100:6.2f}%   (доля, что НИ РАЗУ не нашлась)",
             f"  Gini:         {self.gini:.3f}   (0=равномерно, 1=концентрация)",
             f"  Hub capture:  top5={self.hub_capture_top5*100:5.1f}%  top10={self.hub_capture_top10*100:5.1f}%",
@@ -166,6 +205,8 @@ class FairnessReport:
             "dark_matter_count": len(self.dark_matter_ids),
             "dark_matter_ids": self.dark_matter_ids,
             "lorenz_curve": [[round(x, 6), round(y, 6)] for x, y in self.lorenz_curve],
+            "reachability_ceiling": self.reachability_ceiling,
+            "coverage_of_ceiling": round(self.coverage_of_ceiling, 4),
         }
 
 

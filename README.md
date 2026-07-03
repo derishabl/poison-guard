@@ -71,6 +71,7 @@ retrieval-fairness qrels --probe report.json --qrels qrels.json \
 | Metric | What it shows |
 |---|---|
 | Coverage % | share of the corpus retrieved at least once |
+| Of reachable ceiling % | coverage as a share of what the workload can physically reach (n_queries × top_k); distinguishes a bad retriever from a small workload |
 | Dark matter % | share NEVER retrieved |
 | Gini | exposure concentration (0 = uniform, 1 = all in one) |
 | Hub capture top5/10 | share of exposure captured by top-N hubs |

@@ -68,7 +68,16 @@ vs `retrieval-fairness`) reinforce that the audience reads them as
 2. **Qrels "lost gold" cross-check** — validating dark-matter chunks
    against qrels to show "lost relevant material" (905 relevant dark-
    matter chunks on the full NQ run) — is a packaging insight nobody
-   else has shipped. Worth promoting as a feature, not a footnote.
+   else has shipped. Promoted to a first-class feature
+   (`retrieval-fairness qrels`).
+3. **`coverage of reachable ceiling`** — coverage reported not only as
+   "share of corpus" but also as "share of what the workload can physically
+   reach" (n_queries × top_k). On full NQ: coverage 11.72% = 88.27% of the
+   reachable ceiling. Virgin in the packaging sense: none of retobs,
+   EmbedAudit, vector-guardrails, or T-Retrievability-as-a-product reports
+   coverage relative to a workload ceiling. Turns a scary "88% dark matter"
+   into "the retriever exhausted 88% of what the workload can reach". From
+   the 260k run's own finding.
 3. **Regression-diff as corpus migration audit** — per-chunk deltas,
    rescued/newly-dark-matter chunks. retobs regression is per-query
    golden runs; vector-guardrails is overlap/churn on snapshots. We
