@@ -61,7 +61,8 @@ def main() -> int:
         qid = str(r["query-id"])
         qrels.setdefault(qid, {})[str(r["corpus-id"])] = int(r["score"])
         if qid not in seen:
-            seen.add(qid); qids_seen.append(qid)
+            seen.add(qid)
+            qids_seen.append(qid)
     if args.sample_queries > 0:
         qids_seen = qids_seen[: args.sample_queries]
         qrels = {k: v for k, v in qrels.items() if k in set(qids_seen)}

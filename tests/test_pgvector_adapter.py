@@ -31,7 +31,9 @@ if __name__ == "__main__":
     p = 0
     for name, fn in fns:
         try:
-            fn(); print(f"  PASS  {name}"); p += 1
+            fn()
+            print(f"  PASS  {name}")
+            p += 1
         except (AssertionError, Exception) as e:
             print(f"  SKIP/FAIL  {name}: {e}")
     print(f"\n{p}/{len(fns)} passed")

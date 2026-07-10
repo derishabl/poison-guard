@@ -18,6 +18,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install
         run: pip install -e .[dev,faiss]
+      - name: Lint (ruff)
+        run: ruff check .
       - name: Tests
         run: python -m pytest tests/ -q
       - name: Smoke — synth -> gate (dogfood CI-гейта)

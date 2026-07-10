@@ -1,9 +1,11 @@
 """
-retrieval_fairness — «code coverage для retrieval».
+retrieval_fairness — exposure-аудит векторного поиска / RAG.
 
 Показывает, какую долю векторного корпуса реально достают запросы,
-а какую — никогда не находят (dark matter); меряет концентрацию
-exposure (Gini), захват хабами, и regression-diff при смене эмбеддера.
+а какую — никогда не находят (dark matter / antihub inventory); меряет
+концентрацию exposure (Gini), захват хабами, и regression-diff при смене
+эмбеддера. Почему dark matter неизбежен — см. hubness (Radovanović et al.,
+JMLR 2010) и README «Why your index has dark matter».
 
 Шаг 1: контракт VectorStore + InMemoryVectorStore + базовые метрики
 (coverage, Gini, dark-matter, hub-capture) + CLI probe.
@@ -36,6 +38,7 @@ __all__ = [
     "InMemoryVectorStore",
     "coverage",
     "gini",
+    "reachability_ceiling",
     "dark_matter",
     "hub_capture",
     "lorenz",

@@ -12,8 +12,10 @@ def test_qrels_cli_runs():
         probe = {"freqs": {"A": 2, "B": 1, "C": 0},
                  "hits_per_query": [["A", "B"], ["A"]], "report": {}}
         qrels = {"q1": {"C": 1}, "q2": {"A": 1}}
-        pp = os.path.join(d, "p.json"); json.dump(probe, open(pp, "w"))
-        qp = os.path.join(d, "q.json"); json.dump(qrels, open(qp, "w"))
+        pp = os.path.join(d, "p.json")
+        json.dump(probe, open(pp, "w"))
+        qp = os.path.join(d, "q.json")
+        json.dump(qrels, open(qp, "w"))
         qq = os.path.join(d, "qql.jsonl")
         with open(qq, "w") as f:
             f.write('{"id": "q1"}\n{"id": "q2"}\n')
