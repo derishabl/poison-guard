@@ -9,8 +9,7 @@ health/coverage report for your *index*, not your pipeline.
 
 > Status: early development. This is **packaging novelty** (the Gini /
 > retrievability metrics are honestly borrowed from IR-fairness /
-> T-Retrievability research), not a from-scratch invention. See
-> `RETRIEVAL_FAIRNESS_PLAN.md`.
+> T-Retrievability research), not a from-scratch invention.
 
 ## Why your index has dark matter (it's not a bug in your code)
 
