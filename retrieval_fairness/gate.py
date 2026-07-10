@@ -95,15 +95,16 @@ def evaluate_gate(
     Оценить правила гейта. Правило активно, если порог задан (не None);
     0 означает zero tolerance (любое ухудшение = fail).
     """
-    base = load_probe(baseline_path)
-    cand = load_probe(candidate_path)
-    d = diff_reports(base, cand)
-
-    # Валидация порогов ДО прогона — out-of-range = явная ошибка, не молчаливый pass.
+    # Валидация порогов ДО загрузки/диффа — out-of-range = явная ошибка,
+    # не молчаливый pass (и не тратим время на загрузку при невалидном пороге).
     _validate_threshold("max_coverage_drop", max_coverage_drop)
     _validate_threshold("max_dark_matter_rise", max_dark_matter_rise)
     _validate_threshold("max_gini_rise", max_gini_rise)
     _validate_threshold("min_query_overlap", min_query_overlap)
+
+    base = load_probe(baseline_path)
+    cand = load_probe(candidate_path)
+    d = diff_reports(base, cand)
 
     rules: list[GateRule] = []
 

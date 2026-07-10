@@ -70,10 +70,22 @@ class PgvectorAdapter(BaseVectorStoreAdapter):
                 f"(допустимы {sorted(_ALLOWED_DISTANCE_OPS)})"
             )
         self._distance_op = distance_op
+        self._conn = None  # ленивое персистентное соединение
 
     def _connect(self):
+        # Одно соединение на весь workload: connect-на-запрос доминировал бы
+        # в накладных расходах на тысячах запросов. Переподключаемся,
+        # если соединение закрыто (таймаут/обрыв).
         import psycopg
-        return psycopg.connect(self._database_url)
+        if self._conn is None or self._conn.closed:
+            self._conn = psycopg.connect(self._database_url, autocommit=True)
+        return self._conn
+
+    def close(self) -> None:
+        """Закрыть соединение (опционально; безопасно вызывать повторно)."""
+        if self._conn is not None and not self._conn.closed:
+            self._conn.close()
+        self._conn = None
 
     def _search(self, query_vec: list[float], top_k: int) -> list[Hit]:
         # параметризуем вектор как строку '[v1,v2,...]' — pgvector парсит
@@ -82,7 +94,7 @@ class PgvectorAdapter(BaseVectorStoreAdapter):
             f"SELECT {self._id_column}, {self._column} {self._distance_op} %s AS dist "
             f"FROM {self._table} ORDER BY {self._column} {self._distance_op} %s LIMIT %s"
         )
-        with self._connect() as conn, conn.cursor() as cur:
+        with self._connect().cursor() as cur:
             cur.execute(sql, (vec_str, vec_str, top_k))
             rows = cur.fetchall()
         out = []
@@ -93,13 +105,13 @@ class PgvectorAdapter(BaseVectorStoreAdapter):
         return out
 
     def _list_chunk_ids(self) -> Iterator[str]:
-        with self._connect() as conn, conn.cursor() as cur:
+        with self._connect().cursor() as cur:
             cur.execute(f"SELECT {self._id_column} FROM {self._table}")
-            for (cid,) in cur.fetchall():
+            for (cid,) in cur:  # итерация без fetchall — не держим все id в памяти дважды
                 yield str(cid)
 
     @property
     def size(self) -> int:
-        with self._connect() as conn, conn.cursor() as cur:
+        with self._connect().cursor() as cur:
             cur.execute(f"SELECT COUNT(*) FROM {self._table}")
             return cur.fetchone()[0]

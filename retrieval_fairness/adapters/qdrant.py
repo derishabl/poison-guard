@@ -42,34 +42,45 @@ class QdrantAdapter(BaseVectorStoreAdapter):
         self._collection = collection
         self._api_key = api_key
         self._vector_name = vector_name
+        self._client_instance = None  # ленивый персистентный клиент
 
     def _client(self):
-        from qdrant_client import QdrantClient
-        return QdrantClient(url=self._url, api_key=self._api_key)
+        # Один клиент на весь workload: клиент-на-запрос доминировал бы
+        # в накладных расходах на тысячах запросов.
+        if self._client_instance is None:
+            from qdrant_client import QdrantClient
+            self._client_instance = QdrantClient(url=self._url, api_key=self._api_key)
+        return self._client_instance
+
+    def close(self) -> None:
+        """Закрыть клиент (опционально; безопасно вызывать повторно)."""
+        if self._client_instance is not None:
+            self._client_instance.close()
+            self._client_instance = None
 
     def _search(self, query_vec: list[float], top_k: int) -> list[Hit]:
-        from qdrant_client.models import SearchParams, Query
-        with self._client() as client:
-            # client.search() deprecated в qdrant-client >=1.10 (убран в 2.x).
-            # query_points() — современный API. Совместимость: пробуем новый,
-            # при AttributeError падаем на старый (старые версии qdrant-client).
-            query = Query(nearest=query_vec if self._vector_name is None
-                          else {self._vector_name: query_vec})
-            try:
-                res = client.query_points(
-                    collection_name=self._collection,
-                    query=query,
-                    limit=top_k,
-                    search_params=SearchParams(hnsw_ef=128, exact=False),
-                ).points
-            except AttributeError:
-                # старый qdrant-client (<1.10): нет query_points -> search()
-                res = client.search(
-                    collection_name=self._collection,
-                    query_vector=query_vec if self._vector_name is None else (self._vector_name, query_vec),
-                    limit=top_k,
-                    search_params=SearchParams(hnsw_ef=128, exact=False),
-                )
+        from qdrant_client.models import SearchParams
+        client = self._client()
+        # client.search() deprecated в qdrant-client >=1.10 (убран в 2.x).
+        # query_points() — современный API: query — сырой вектор,
+        # named vector передаётся через using=. Совместимость: пробуем
+        # новый, при AttributeError падаем на старый search().
+        try:
+            res = client.query_points(
+                collection_name=self._collection,
+                query=query_vec,
+                using=self._vector_name,
+                limit=top_k,
+                search_params=SearchParams(hnsw_ef=128, exact=False),
+            ).points
+        except AttributeError:
+            # старый qdrant-client (<1.10): нет query_points -> search()
+            res = client.search(
+                collection_name=self._collection,
+                query_vector=query_vec if self._vector_name is None else (self._vector_name, query_vec),
+                limit=top_k,
+                search_params=SearchParams(hnsw_ef=128, exact=False),
+            )
         out = []
         for rank, point in enumerate(res, start=1):
             out.append(Hit(chunk_id=str(point.id), score=float(point.score), rank=rank))
@@ -77,23 +88,22 @@ class QdrantAdapter(BaseVectorStoreAdapter):
 
     def _list_chunk_ids(self) -> Iterator[str]:
         # scroll API — пагинация по всему корпусу
-        with self._client() as client:
-            offset = None
-            while True:
-                points, offset = client.scroll(
-                    collection_name=self._collection,
-                    limit=1000,
-                    offset=offset,
-                    with_payload=False,
-                    with_vectors=False,
-                )
-                for p in points:
-                    yield str(p.id)
-                if offset is None:
-                    break
+        client = self._client()
+        offset = None
+        while True:
+            points, offset = client.scroll(
+                collection_name=self._collection,
+                limit=1000,
+                offset=offset,
+                with_payload=False,
+                with_vectors=False,
+            )
+            for p in points:
+                yield str(p.id)
+            if offset is None:
+                break
 
     @property
     def size(self) -> int:
-        with self._client() as client:
-            info = client.get_collection(self._collection)
-            return info.points_count or 0
+        info = self._client().get_collection(self._collection)
+        return info.points_count or 0

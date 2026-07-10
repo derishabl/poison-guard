@@ -164,7 +164,13 @@ class FairnessReport:
         ceil = self.reachability_ceiling
         if ceil <= 0:
             return 0.0
-        found = round(self.coverage_pct * self.n_chunks)  # найдено уникальных чанков
+        # Точный подсчёт через dark_matter_ids (n - dark = found). Реконструкция
+        # из округлённого coverage_pct (JSON round(4)) на 260k-корпусе давала бы
+        # ошибку до ±13 чанков — fallback только если ids не заполнены.
+        if self.dark_matter_ids or self.coverage_pct >= 1.0:
+            found = self.n_chunks - len(self.dark_matter_ids)
+        else:
+            found = round(self.coverage_pct * self.n_chunks)
         return min(1.0, found / ceil)
 
     def __str__(self) -> str:
