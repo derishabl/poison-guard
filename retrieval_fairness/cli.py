@@ -209,7 +209,8 @@ def main(argv: list[str] | None = None) -> int:
                 stream.reconfigure(encoding="utf-8", errors="replace")
             except Exception:
                 pass
-    parser = argparse.ArgumentParser(prog="retrieval_fairness", description="«code coverage для retrieval»")
+    parser = argparse.ArgumentParser(prog="retrieval_fairness",
+                                     description="exposure-аудит векторного поиска: coverage, dark matter, Gini, CI-гейт")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_probe = sub.add_parser("probe", help="прогнать workload и напечатать отчёт exposure")
@@ -263,7 +264,8 @@ def main(argv: list[str] | None = None) -> int:
     p_qrels.add_argument("--json", help="экспорт результата в JSON")
     p_qrels.set_defaults(func=cmd_qrels)
 
-    p_synth = sub.add_parser("synth", help="синтетические запросы из корпуса (без query-логов)")
+    p_synth = sub.add_parser("synth",
+                             help="antihub self-query аудит: синтетические запросы из корпуса (без query-логов)")
     p_synth.add_argument("--corpus", required=True, help="JSONL: {id, text, vector}")
     p_synth.add_argument("--top-k", type=int, default=10)
     p_synth.add_argument("--n-per-chunk", type=int, default=1)

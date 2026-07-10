@@ -1,14 +1,30 @@
 # retrieval-fairness
 
-**Code coverage for retrieval.** Shows what share of your vector corpus
-is actually reachable by queries and what share is never retrieved
-(dark matter); measures exposure concentration (Gini), hub capture,
-and regression diff when you change the embedder or chunking.
+**Exposure audit for vector search / RAG.** Shows what share of your
+vector corpus is actually reachable by queries and what share is never
+retrieved (**dark matter** — the antihub inventory of your index);
+measures exposure concentration (Gini), hub capture, and regression
+diff when you change the embedder or chunking. Think of it as a
+health/coverage report for your *index*, not your pipeline.
 
 > Status: early development. This is **packaging novelty** (the Gini /
 > retrievability metrics are honestly borrowed from IR-fairness /
 > T-Retrievability research), not a from-scratch invention. See
 > `RETRIEVAL_FAIRNESS_PLAN.md`.
+
+## Why your index has dark matter (it's not a bug in your code)
+
+Hubs and never-retrieved chunks are a **structural property of
+high-dimensional nearest-neighbor search**, not a symptom of a bad
+embedder. Radovanović, Nanopoulos & Ivanović (JMLR 2010, [“Hubs in
+Space”](https://www.jmlr.org/papers/v11/radovanovic10a.html)) showed
+that as dimensionality grows, the distribution of k-occurrences becomes
+strongly right-skewed: a few points (hubs) appear in a disproportionate
+share of neighbor lists, while others (antihubs) appear in almost none.
+Modern ANN indexes (HNSW) amplify the effect — hub nodes are the
+highway entry points that make the graph navigable. Left unmeasured,
+this silently collapses the *effective* size of your corpus. This tool
+makes it measurable — and gateable in CI.
 
 ## Installation
 
@@ -34,7 +50,12 @@ retrieval-fairness probe --corpus corpus.jsonl --queries queries.jsonl \
     --top-k 10 --json report.json --html dashboard.html
 ```
 
-### No query logs: synthetic queries from the corpus
+### No query logs: antihub self-query audit (synthetic queries)
+
+For each chunk, generate the query that *should* retrieve it (its own
+top TF-IDF terms) and check whether it actually surfaces. A chunk that
+cannot be found even by a query aimed at it is invisible from any
+reasonable query direction — dark matter from day one:
 
 ```bash
 retrieval-fairness synth --corpus corpus.jsonl --top-k 10 --html dashboard.html

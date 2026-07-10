@@ -20,10 +20,36 @@ novelty is RAG-specific packaging.
 | **retrieval-observatory (retobs)** | pipeline reliability (RAG) | ❌ (recall/NDCG, not exposure) | ✅ | ✅ (golden sets + pytest) | ✅ | 8 adapters (pgvector/Qdrant/BM25/...) | **v0.4.1, active PyPI** |
 | T-Retrievability | retrievability metric | ✅ (the metric) | ❌ | ❌ | ❌ | TREC run-files only | paper + code (CIKM 2025) |
 | **vector-guardrails** | semantic-change detection | ❌ (overlap/churn) | ✅ (exit codes) | ✅ | ❌ | snapshots (any store) | early v0.1.0, not on PyPI |
-| semantic-coverage | knowledge gaps (RAG) | partial | ❌ | ❌ | ❌ | vector store | small |
+| **ragcheck** | retrieval quality harness (qrels) | ❌ (recall/nDCG, not exposure) | partial (deterministic) | ✅ (regression diffs) | ❌ | offline runs | active GitHub |
+| semantic-coverage | knowledge gaps (RAG) | partial | ❌ | ❌ | ✅ (web app) | Pinecone/Chroma connectors | small |
 | rag-sentinel | governance (RAG) | ❌ (freshness/PII) | ❌ | partial | partial | vector store | small |
 | RankAudit | generic ranking fairness | ✅ (general) | ❌ | ❌ | ❌ | black-box ranker | small |
 | Drift-Adapter | embedding migration | ❌ | ❌ | ❌ | ❌ | research | paper |
+
+## ragcheck — the closest tool in *spirit* (offline, deterministic, diffs)
+
+`ragcheck` (JSLEEKR/ragcheck) is an offline retrieval-quality harness:
+recall@k / precision@k / MRR / nDCG (binary + graded), chunking
+diagnostics, and **deterministic regression diffs** with no LLM-as-judge.
+It shares our philosophy (offline, reproducible, CI-friendly) but audits
+a different axis: **qrels-based quality** ("did the relevant docs land
+in top-k?"), not per-chunk exposure. It has no retrieval-frequency
+notion — no coverage, dark matter, Gini, or hub leaderboard. Our `qrels`
+command overlaps its recall@k, but as a cross-check against dark matter
+("lost gold"), not as the primary metric. Complementary, worth watching.
+
+## ⚠️ Marketing collision: "code coverage for RAG" is taken
+
+`semantic-coverage` uses the literal tagline **"The Code Coverage tool
+for RAG Knowledge Bases"**. Its mechanism is different (UMAP + HDBSCAN
+blind-spot detection of query clusters vs document clusters, shipped as
+a FastAPI + React web app — no retrieval-frequency, no Gini/dark matter,
+no CI gate, not a pip library), so the tools are complementary in
+function. But leading with "code coverage for retrieval" would put us
+in a head-on SEO/positioning fight over a metaphor we don't own.
+**Decision: lead with "exposure audit" / "dark matter" / "antihub
+inventory"** (the latter grounded in hubness literature, Radovanović
+et al. 2010) and keep "code coverage" as a secondary explainer only.
 
 ## The key 2026 finding: retobs is the closest competitor
 
@@ -98,6 +124,12 @@ vs `retrieval-fairness`) reinforce that the audience reads them as
    live trace observability; we do not. Stay offline-purposeful.
 4. **Synthetic queries are crude** — deterministic TF-IDF, no LLM
    paraphrase. retobs has `generate_testset` + LLM-judge labels.
+   Mitigation: we now frame `synth` as what it honestly is — an
+   **antihub self-query audit** ("can a chunk be found even by a query
+   aimed directly at it?"), which practitioner guidance (e.g. the 2026
+   popularity-bias literature) recommends running on every corpus
+   update. Crude as a workload simulator, precise as an invisibility
+   detector.
 5. **No Pinecone adapter yet** (SaaS, manual check); retobs notes
    Pinecone / Weaviate as unsupported too.
 
